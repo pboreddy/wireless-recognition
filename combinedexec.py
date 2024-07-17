@@ -1,27 +1,23 @@
 from recognition import Recognition
 from visualization import BeamVisualizer
-from multiprocessing import Process, Pipe
+from multiprocess import Process, Pipe, Queue
 
-def start_recog(pipe_output):
-    recog = Recognition(pipe_output)
+def start_recog(queue):
+    recog = Recognition(queue)
     recog.start_process()
-    pipe_output.close()
+    # pipe_output.close()
 
-def start_vis(pipe_input):
-    vis = BeamVisualizer(pipe_input)
+def start_vis(queue):
+    vis = BeamVisualizer(queue)
     vis.start_process()
-    pipe_input.close()
+    # pipe_input.close()
     
 if __name__ == "__main__":
-    pipe_input, pipe_output = Pipe()
-    # pipe_input.close()
-    # vis = BeamVisualizer(pipe_input)
-    # recog = Recognition(pipe_output)
-    # p = Process(target=vis.start_process)
-    # q = Process(target=recog.start_process)
-    p = Process(target=start_recog, args=(pipe_output,))
-    q = Process(target=start_vis, args=(pipe_input,))
-    p.start()
-    q.start()
-    p.join()
-    q.join()
+    # pipe_input, pipe_output = Pipe()
+    q = Queue()
+    a = Process(target=start_recog, args=(q,))
+    b = Process(target=start_vis, args=(q,))
+    a.start()
+    b.start()
+    a.join()
+    b.join()

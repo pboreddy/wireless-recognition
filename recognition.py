@@ -9,17 +9,19 @@ import numpy as np
 from math import sqrt
 import sys
 from contextlib import redirect_stdout
+from multiprocessing import Queue
 
 
 class Recognition:
-    def __init__(self, conn):
-        self.conn = conn
+    # def __init__(self, conn):
+    #     self.conn = conn
         # self.process()
+    def __init__(self, q):
+        self.queue = q
 
     def load_model(self):
         device = select_device(device='mps', verbose=False)
         model = YOLO('yolov8n.pt').to(device)
-        model_info(model, verbose=False)
         return model
 
     def load_calibration(self):
@@ -56,7 +58,6 @@ class Recognition:
         self.calib = self.load_calibration()
         self.calib.camera = np.array([[764,0,662], [0,765, 325],[0,0,1]])
         self.calib.distortion[0] = np.array([0.0718, -0.084, -0.001, 0.001, 0.022])
-        # self.calib.distortion[0] = np.array([0.0718,-0.08,-0.00556,-0.00038463,0.444])
         self.a = 66
         self.b = 66
         self.c = 66
@@ -94,30 +95,28 @@ class Recognition:
             annotated_frame = results[0].plot()
             h, w = frame.shape[:2]
             newcameramtx, roi = cv2.getOptimalNewCameraMatrix(camera, distortion, (w,h), 1, (w,h))
-
+            angles = {} # map ids to angles
             # obtain the center point of each bounding box (for now)
             for box in results[0].boxes:
-                # print(self.calib.cam)
                 x1, y1, x2, y2 = map(int, box.xyxy.cpu()[0])
                 centerX = (x1+x2) // 2
                 centerY = (y1+y2) // 2
-                centerX = 1240
-                centerY = 490
-                centerX = self.a
-                centerY = self.b
+                # centerX = 1240
+                # centerY = 490
+                # centerX = self.a
+                # centerY = self.b
                 center = np.array([centerX , centerY, 1])
                 # undistort the center point
                 undistortedCenter = cv2.undistortPoints(np.array([[centerX, centerY]], dtype=np.float32), camera, distortion, None, newcameramtx)[0][0]
-                # print(distortion)
-                # print(center, undistortedCenter)
                 cv2.circle(annotated_frame, (centerX, centerY), radius=5, color=(0, 255, 0), thickness=-1)
                 cv2.circle(annotated_frame, (self.c, self.d), radius=5, color=(0, 0, 255), thickness=-1)
                 centerX = undistortedCenter[0]
                 centerY = undistortedCenter[1]
                 undistorted_theta_x = (centerX - width / 2) / width * horizontal_fov*1.25
                 undistorted_theta_y = (height / 2 - centerY) / height * vertical_fov
+                angles[int(box.id)] = undistorted_theta_x
                 # print(undistorted_theta_x)
-                self.conn.send(undistorted_theta_x.item())
+                # self.conn.send(undistorted_theta_x.item())
                 try:
                     # pass
                     print(f"class: {classes[int(box.cls)]} id: {int(box.id)} undistorted angle: {undistorted_theta_x}°, {undistorted_theta_y}°")
@@ -125,6 +124,11 @@ class Recognition:
                     # print(distortion)
                 except:
                     continue
+                            # empty the queue
+            while not self.queue.empty():
+                self.queue.get()
+            # add the newest element(s) to the queue
+            self.queue.put(angles)
             cv2.imshow("vid", annotated_frame)
             cv2.setMouseCallback('vid', self.click_event)
             key = cv2.waitKey(5)
@@ -133,6 +137,3 @@ class Recognition:
         cv2.destroyAllWindows()
         capture.release()
         cv2.waitKey(1)
-
-# recog = Recognition(None)
-# recog.start_()
