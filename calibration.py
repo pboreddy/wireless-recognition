@@ -72,4 +72,6 @@ class Calibration:
                 pickle.dump(self, f)
         except:
             print("There was an error storing the calibration data")
+    def get_params(self) -> tuple:
+        return self.cam, self.distortion
         # return status, cam, distortion, r, t
